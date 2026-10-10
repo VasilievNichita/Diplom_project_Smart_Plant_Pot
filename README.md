@@ -21,6 +21,8 @@ npm run dev
 
 Open `http://127.0.0.1:4173`. The preview binds only to loopback, not the public network. No npm dependencies or installation step are required.
 
+On Windows, `start-site.cmd` starts the same server. If the port is already in use, reuse the existing preview rather than starting another instance.
+
 ```sh
 cd site
 npm test
