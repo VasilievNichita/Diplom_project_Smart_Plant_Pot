@@ -30,6 +30,47 @@ function arm(s,channel=1,overrides={}) {
 function queue(s,overrides={}) { return s.queueCommand({mode:'real',requestKey:randomUUID(),channelId:1,expectedRevision:s.channel('real',1).revision,volumeMl:10,...overrides}); }
 const fails=(code,fn)=>assert.throws(fn,e=>e.code===code);
 
+test('firmware measured durations preserve timer jitter and disarm on an overrun',t=>{
+  const {s,advance}=fixture(t),{deviceId}=setup(s);
+  s.telemetry(deviceId,packet(s));arm(s);
+  const c=queue(s);s.claimCommand(deviceId);
+  s.commandResult(deviceId,c.id,{status:'completed',actualDurationMs:5007});
+  assert.equal(s.events({mode:'real'}).items[0].durationMs,5007);
+  advance(61000);s.telemetry(deviceId,packet(s,2));
+  const fault=queue(s);s.claimCommand(deviceId);
+  fails('duration_exceeded',()=>s.commandResult(deviceId,fault.id,{status:'completed',actualDurationMs:15000}));
+  const result={status:'failed',actualDurationMs:15000,note:'timer_overrun'};
+  assert.equal(s.commandResult(deviceId,fault.id,result).status,'failed');
+  assert.equal(s.commandResult(deviceId,fault.id,result).status,'failed');
+  assert.equal(s.channel('real',1).armed,0);assert.equal(s.channel('real',2).armed,0);
+  const row=s.events({mode:'real'}).items[0];assert.equal(row.durationMs,15000);assert.equal(row.estimatedMl,30);assert.equal(row.waterMl,null);
+  advance(61000);s.telemetry(deviceId,packet(s,3));arm(s);
+  fails('daily_limit',()=>queue(s,{volumeMl:10})); // 10.014 + 30 + 10 exceeds 50 ml
+});
+
+test('device recovery exposes only its command resolution and never invents duration',t=>{
+  const {s,advance}=fixture(t),{deviceId}=setup(s);
+  s.telemetry(deviceId,packet(s));arm(s);const c=queue(s);s.claimCommand(deviceId);
+  assert.equal(s.commandResolution(deviceId,c.id).resolution,null);
+  fails('command_not_found',()=>s.commandResolution('unrelated',c.id));
+  advance(91000);assert.equal(s.commandResolution(deviceId,c.id).status,'unknown');
+  s.reconcile(c.id,{pumpsStopped:true,note:'Checked both pumps and switch OFF'});
+  const r=s.commandResolution(deviceId,c.id);assert.equal(r.status,'failed');assert.equal(r.resolution.reconciled,true);
+  assert.equal(r.resolution.actualDurationMs,undefined);
+  assert.ok(s.deviceConfig(deviceId).capabilities.includes('command-resolution-v1'));
+});
+
+test('device-only HTTP gateway supports authenticated recovery lookup',async t=>{
+  const {s}=fixture(t),{deviceId,token}=setup(s);
+  s.telemetry(deviceId,packet(s));arm(s);const c=queue(s);s.claimCommand(deviceId);
+  const server=createServer(s,{deviceOnly:true});
+  await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));t.after(()=>new Promise(resolve=>server.close(resolve)));
+  const url=`http://127.0.0.1:${server.address().port}/api/device/commands/${c.id}`;
+  assert.equal((await fetch(url)).status,401);
+  const response=await fetch(url,{headers:{Authorization:`Bearer ${token}`}});
+  assert.equal(response.status,200);assert.equal((await response.json()).status,'delivered');
+});
+
 test('events validate data, remain separate and are idempotent',t=>{
   const {s}=fixture(t),event={id:randomUUID(),mode:'real',plantId:'cactus',type:'observation',note:'first'};
   s.saveEvent(event);s.saveEvent(event);

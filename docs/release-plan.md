@@ -9,7 +9,7 @@ The user requested daily publication checks until 31 October 2026. Releases must
 
 ## Next coherent changes
 
-1. Firmware for the purchased ESP32 board, pump drivers and sensors, including local watchdog and persistent command deduplication.
+1. Verify purchased board/driver/pump variants against the v0.3 wiring baseline; adjust if needed.
 2. Real calibration and fault-injection trials after parts arrive.
 3. Device credential rotation and authenticated remote operator access when needed.
 4. Automatic irrigation decisions evaluated against a deterministic baseline.
@@ -32,3 +32,7 @@ Stop publication after 31 October 2026 in Europe/Chisinau. Notify only on a succ
 The v0.2 backend is implemented locally: SQLite persistence and legacy browser migration; server photos and full backups; validated, authenticated telemetry; separate demo/real channel assignments; bounded manual irrigation command lifecycle; and an isolated ESP32 simulator. See docs/api.md and docs/architecture.md for scope and remaining hardware work.
 
 A reviewed local commit may already contain this milestone. At the scheduled check, inspect unpushed commits as well as working-tree changes. Push the existing reviewed commit without creating an empty or duplicate one. Verify with `npm test` and `npm run simulate` from `site` using Node.js 24+. The simulator uses a separate in-memory database and must not be redirected to the actual installation. Never stage `data/`, `private/` or `planning/`.
+
+## Firmware milestone
+
+The v0.3 source, wiring PDF, generator and assembly guide are publishable together with the small backend protocol extension for measured runtime and operator recovery. Review existing pending commits in order. Build `monitor`, `pump-test` and `irrigation` from `firmware`, run `firmware/scripts/test-native.ps1`, then the backend tests. Do not upload firmware to an attached board during an unattended publishing run. Never stage `firmware/include/secrets.h`, `.pio`, generated binaries with credentials, hardware QA renders or physical measurement records. Claims must distinguish host tests and cross-compilation from the still-pending bench trials.

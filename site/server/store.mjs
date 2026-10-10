@@ -177,7 +177,7 @@ export class Store {
     check(typeof token==='string' && token.length===64,'unauthorized',401);
     const d=this.db.prepare('SELECT * FROM devices WHERE token_hash=?').get(digest(token)); check(d,'unauthorized',401); return d.id;
   }
-  deviceConfig(deviceId) { return {deviceId,serverTime:this.now(),channels:this.config().filter(c=>c.mode==='real'),maxRuntimeMs:30000,protocol:1}; }
+  deviceConfig(deviceId) { return {deviceId,serverTime:this.now(),channels:this.config().filter(c=>c.mode==='real'),maxRuntimeMs:30000,protocol:1,capabilities:['measured-duration-v1','command-resolution-v1']}; }
   telemetry(deviceId,body) {
     object(body); const boot=id(body.bootId),sequence=number(body.sequence,0,2147483647,false,true);
     check(typeof body.reservoirOk==='boolean','invalid_reservoir');
@@ -256,7 +256,7 @@ export class Store {
       const lastEnd=last && (last.finished_at || (last.delivered_at ? new Date(Date.parse(last.delivered_at)+last.duration_ms).toISOString() : last.created_at));
       check(!lastEnd || this.clock()-Date.parse(lastEnd)>=c.cooldown_s*1000,'cooldown',409);
       const since=new Date(this.clock()-86400000).toISOString();
-      const used=this.db.prepare("SELECT COALESCE(SUM(requested_ml),0) AS ml FROM commands WHERE channel_id=? AND created_at>=? AND status NOT IN ('expired','cancelled')").get(c.id,since).ml;
+      const used=this.db.prepare("SELECT COALESCE(SUM(MAX(requested_ml,requested_ml*COALESCE(json_extract(result,'$.actualDurationMs'),0)/duration_ms)),0) AS ml FROM commands WHERE channel_id=? AND created_at>=? AND status NOT IN ('expired','cancelled')").get(c.id,since).ml;
       check(used+body.volumeMl<=c.daily_limit_ml,'daily_limit',409);
       const cmd={id:randomUUID(),request_key:body.requestKey,device_id:d.id,channel_id:c.id,plant_id:c.plant_id,sensor_id:this.plant(c.plant_id).sensor_id,binding_revision:c.revision,requested_ml:body.volumeMl,duration_ms:duration,status:'queued',created_at:this.now(),expires_at:new Date(this.clock()+30000).toISOString()};
       this.db.prepare('INSERT INTO commands(id,request_key,device_id,channel_id,plant_id,sensor_id,binding_revision,requested_ml,duration_ms,status,created_at,expires_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)').run(...Object.values(cmd));
@@ -274,16 +274,26 @@ export class Store {
   }
   commandResult(deviceId,commandId,body) {
     object(body);check(['completed','failed'].includes(body.status),'invalid_result');
-    const result={status:body.status,actualDurationMs:number(body.actualDurationMs,0,30000,false,true),note:string(body.note,500,'')};
+    // Record actual output time, including a fault; never require firmware to hide an overrun.
+    // This reporting range does not enlarge the 30-second command limit.
+    const result={status:body.status,actualDurationMs:number(body.actualDurationMs,0,86400000,false,true),note:string(body.note,500,'')};
     return this.tx(()=>{
       const cmd=this.db.prepare('SELECT * FROM commands WHERE id=? AND device_id=?').get(id(commandId),deviceId);check(cmd,'command_not_found',404);
       if(cmd.result){check(cmd.result===JSON.stringify(result),'result_conflict',409);return cmd;}
       check(['delivered','unknown'].includes(cmd.status),'command_not_delivered',409);
-      check(result.actualDurationMs<=cmd.duration_ms,'duration_exceeded',409);
+      const overrun=result.actualDurationMs>cmd.duration_ms+50;
+      check(!overrun || result.status==='failed','duration_exceeded',409);
+      if(overrun)this.disarm();
       this.db.prepare('UPDATE commands SET status=?,result=?,finished_at=? WHERE id=?').run(result.status,JSON.stringify(result),this.now(),cmd.id);
       this.insertEvent({id:randomUUID(),mode:'real',plantId:cmd.plant_id,type:'watering',date:this.now(),note:result.note,source:'controller',commandId:cmd.id,status:result.status,durationMs:result.actualDurationMs,estimatedMl:Math.round(cmd.requested_ml*result.actualDurationMs/cmd.duration_ms*10)/10,waterMl:null});
       return this.db.prepare('SELECT * FROM commands WHERE id=?').get(cmd.id);
     });
+  }
+  commandResolution(deviceId,commandId) {
+    this.expire();
+    const cmd=this.db.prepare('SELECT id,status,result FROM commands WHERE id=? AND device_id=?').get(id(commandId),deviceId);
+    check(cmd,'command_not_found',404);
+    return {id:cmd.id,status:cmd.status,resolution:cmd.result?JSON.parse(cmd.result):null};
   }
   disarm() {
     this.db.exec("UPDATE channels SET armed=0 WHERE mode='real'; UPDATE commands SET status='cancelled' WHERE status='queued';");

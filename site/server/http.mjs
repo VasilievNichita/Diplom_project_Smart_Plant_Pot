@@ -39,6 +39,8 @@ export function createServer(store,{deviceOnly=false}={}) {
         if(route==='/api/device/config'&&method==='GET')return json(res,200,store.deviceConfig(deviceId));
         if(route==='/api/device/telemetry'&&method==='POST')return json(res,200,store.telemetry(deviceId,await body(req)));
         if(route==='/api/device/commands/claim'&&method==='POST'){await body(req);return json(res,200,{command:store.claimCommand(deviceId)});}
+        const resolution=route.match(/^\/api\/device\/commands\/([\w-]+)$/);
+        if(resolution&&method==='GET')return json(res,200,store.commandResolution(deviceId,resolution[1]));
         const match=route.match(/^\/api\/device\/commands\/([\w-]+)\/result$/);
         if(match&&method==='POST')return json(res,200,store.commandResult(deviceId,match[1],await body(req)));
         throw new ApiError(404,'not_found');

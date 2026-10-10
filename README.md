@@ -2,7 +2,7 @@
 
 Diploma project by **Vasiliev Nichita, CR-232**. One controller, two irrigation channels, three registered specimens: Chlorophytum comosum, Tradescantia zebrina and a cactus whose species is pending identification.
 
-## Implemented in v0.2
+## Implemented through v0.3
 
 - Responsive botanical UI in Romanian, Russian and English.
 - Node.js API and persistent SQLite storage for plant identities, channel assignments, observations, photos, preferences, calibrations, sensor measurements and irrigation commands.
@@ -11,6 +11,7 @@ Diploma project by **Vasiliev Nichita, CR-232**. One controller, two irrigation 
 - Authenticated ESP32 API with binding revisions, packet deduplication and raw ADC readings. Relative moisture is calculated from the saved probe calibration.
 - Bounded manual watering requests with dose, rolling 24-hour budget, cooldown, freshness and reservoir checks. Commands are handed off once and require a device result; uncertain results block further watering.
 - Full SQLite backup, including photos; complete journal CSV export; paginated journal and measurement API.
+- ESP32-WROOM firmware with monitor, offline pump calibration and online irrigation builds; local interlocks, watchdog and persistent command journal. Wiring PDF and step-by-step commissioning guide are included. Physical hardware validation is pending.
 
 **The real controller is not connected. No physical watering or model accuracy has been demonstrated.** Automatic scheduling, trained models, Blender assets, account registration, remote hosting and notification delivery are still future work. SVG illustrations and demo charts remain clearly labelled.
 
@@ -39,7 +40,7 @@ The simulator starts an isolated in-memory database and temporary localhost serv
 
 See [the API and ESP32 connection guide](docs/api.md). The optional device-only network listener stays disabled until explicitly configured. A registered device has its own secret token. Only the hash is stored in SQLite; credentials must never be committed.
 
-The controller firmware must independently enforce pump-off on boot, a local runtime watchdog, reservoir/probe checks and durable command-ID deduplication. Server-side validation alone cannot stop a pump when the connection or server fails.
+Start with the [firmware guide](firmware/README.md), [assembly and fault tests](docs/hardware-assembly.md) and [printable wiring PDF](output/pdf/folium-wiring.pdf). The default build disables pump outputs. The irrigation build implements pump-off on boot, local timing/watchdog, reservoir/probe checks and durable command-ID deduplication. Parts must match the documented voltage, pin mapping and driver circuit. Server-side validation alone cannot stop a pump when the connection or server fails.
 
 ## Data and backups
 
@@ -55,6 +56,8 @@ The journal CSV contains manual/imported/controller events. High-frequency telem
 - `site/server/`: schema, validation, transactions, HTTP API and irrigation safeguards.
 - `site/scripts/`: server, credential provisioning and isolated simulator.
 - `site/tests/`: state, translation, persistence, API and irrigation tests.
+- `firmware/`: PlatformIO project and shared C++ safety-core tests.
+- `hardware/`: source generator for the vector wiring PDF in `output/pdf/`.
 - `docs/`: architecture, hardware protocol and publication plan.
 
 Target: an integrated prototype by winter 2026–2027; defense in May 2027. Changing plant profiles is configuration, not proof of machine learning. Evaluation claims require measured results.
