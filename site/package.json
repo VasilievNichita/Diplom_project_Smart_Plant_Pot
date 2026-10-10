@@ -1,8 +1,8 @@
 {
   "name": "folium-smart-plant-pot",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
-  "scripts": {"dev": "node scripts/serve.mjs", "test": "node --test tests/*.test.mjs"},
-  "engines": {"node": ">=20"}
+  "scripts": {"dev": "node scripts/serve.mjs", "start": "node scripts/serve.mjs", "test": "node --test tests/*.test.mjs", "provision-device": "node scripts/provision-device.mjs", "simulate": "node scripts/simulate.mjs"},
+  "engines": {"node": ">=24.0.0"}
 }

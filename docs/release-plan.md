@@ -9,16 +9,13 @@ The user requested daily publication checks until 31 October 2026. Releases must
 
 ## Next coherent changes
 
-1. UI changes agreed after the first review.
-2. Data import and storage migration, if selected.
-3. Local server schema and specimen/sensor identities.
-4. Telemetry ingestion with explicit simulation mode.
-5. Controller state machine and mocked fault tests.
-6. Firmware for the purchased board and sensors.
-7. Real calibration routines after parts arrive.
-8. Training pipeline after dataset scope and labels are verified.
-9. GLB models after reference photos are available.
-10. Server-side notification delivery after account linking is configured.
+1. Firmware for the purchased ESP32 board, pump drivers and sensors, including local watchdog and persistent command deduplication.
+2. Real calibration and fault-injection trials after parts arrive.
+3. Device credential rotation and authenticated remote operator access when needed.
+4. Automatic irrigation decisions evaluated against a deterministic baseline.
+5. Training pipeline after dataset scope and labels are verified.
+6. GLB models after reference photos are available.
+7. Server-side notification delivery after account linking is configured.
 
 These are work packages, not promises of daily finished features. Hardware arrival, real plant cycles and data review cannot be replaced by scheduled Git pushes.
 
@@ -29,3 +26,9 @@ Use only `https://github.com/VasilievNichita/Diplom_project_Smart_Plant_Pot` onc
 Inspect the diff. Stage only reviewed source/docs/tests, never private plans, photographs, datasets, credentials or experimental records. Run relevant checks. Commit one coherent completed change if needed, and push only reviewed pending commits in order. Do not force-push or auto-resolve remote conflicts. If no completed changes exist, skip publication. If authentication is missing, report the blocker without attempting to access unrelated credentials.
 
 Stop publication after 31 October 2026 in Europe/Chisinau. Notify only on a successful release, a new failure, completion or a required user action. A scheduled check does not guarantee a commit every day.
+
+## Completed backend milestone pending scheduled publication
+
+The v0.2 backend is implemented locally: SQLite persistence and legacy browser migration; server photos and full backups; validated, authenticated telemetry; separate demo/real channel assignments; bounded manual irrigation command lifecycle; and an isolated ESP32 simulator. See docs/api.md and docs/architecture.md for scope and remaining hardware work.
+
+A reviewed local commit may already contain this milestone. At the scheduled check, inspect unpushed commits as well as working-tree changes. Push the existing reviewed commit without creating an empty or duplicate one. Verify with `npm test` and `npm run simulate` from `site` using Node.js 24+. The simulator uses a separate in-memory database and must not be redirected to the actual installation. Never stage `data/`, `private/` or `planning/`.

@@ -1,49 +1,60 @@
 # Folium — Smart Plant Pot
 
-Diploma project by **Vasiliev Nichita, CR-232**. A two-channel plant-care system with three registered plants: Chlorophytum comosum, Tradescantia zebrina, and a cactus whose species will be confirmed after purchase.
+Diploma project by **Vasiliev Nichita, CR-232**. One controller, two irrigation channels, three registered specimens: Chlorophytum comosum, Tradescantia zebrina and a cactus whose species is pending identification.
 
-## Current implementation
+## Implemented in v0.2
 
-The first deliverable is a responsive, dependency-free web UI in Romanian, Russian and English. It includes plant profiles, two channel assignments, a care journal, manual measurements, photo storage, CSV/JSON export and notification contact preferences.
+- Responsive botanical UI in Romanian, Russian and English.
+- Node.js API and persistent SQLite storage for plant identities, channel assignments, observations, photos, preferences, calibrations, sensor measurements and irrigation commands.
+- Automatic one-time import of the first UI's browser records and photos. Browser originals are retained; retrying does not create duplicates. Import failure is visible.
+- Independent demo and real channel assignments. Replacing a real pot preserves its history and disarms the channel.
+- Authenticated ESP32 API with binding revisions, packet deduplication and raw ADC readings. Relative moisture is calculated from the saved probe calibration.
+- Bounded manual watering requests with dose, rolling 24-hour budget, cooldown, freshness and reservoir checks. Commands are handed off once and require a device result; uncertain results block further watering.
+- Full SQLite backup, including photos; complete journal CSV export; paginated journal and measurement API.
 
-**Demo charts are illustrative. No physical controller, trained model, authentication service or notification delivery is connected in this version.** The plant illustrations are original SVG artwork, not Blender models. A future version will add GLB models after the actual plants are photographed.
+**The real controller is not connected. No physical watering or model accuracy has been demonstrated.** Automatic scheduling, trained models, Blender assets, account registration, remote hosting and notification delivery are still future work. SVG illustrations and demo charts remain clearly labelled.
 
-Data is stored in the current browser only: records and settings in localStorage, photos in IndexedDB. It is not synchronized across devices. JSON export excludes photo binaries; keep originals separately. Clearing browser data removes local records and images.
+## Run on this PC
 
-## Run
-
-Install Node.js 20 or later, then:
+Requires **Node.js 24 or later** (tested with 24.19.0; uses built-in `node:sqlite`). There are no npm dependencies to install.
 
 ```sh
 cd site
-npm run dev
+npm start
 ```
 
-Open `http://127.0.0.1:4173`. The preview binds only to loopback, not the public network. No npm dependencies or installation step are required.
+Open `http://127.0.0.1:4173`. On Windows, double-click `start-site.cmd`; leave its terminal running. The launcher can also use the bundled Codex Node runtime. If a server is already running, use it instead of launching another.
 
-On Windows, `start-site.cmd` starts the same server. If the port is already in use, reuse the existing preview rather than starting another instance.
+The database is `data/folium.sqlite`, outside the public website directory and excluded from Git. The server takes an exclusive SQLite lock; run one server per database. The admin interface is bound to loopback. It is a single-user home prototype, not a public multi-user service.
 
 ```sh
 cd site
 npm test
+npm run simulate
 ```
 
-## Layout
+The simulator starts an isolated in-memory database and temporary localhost server. It cannot target the real installation and never operates pumps.
 
-- `site/dist/`: browser application and original illustrations.
-- `site/scripts/serve.mjs`: local static server.
-- `site/tests/`: state transitions, validation and translation completeness.
-- `docs/`: public architecture and implementation milestones.
+## Connecting hardware later
 
-## Planned work
+See [the API and ESP32 connection guide](docs/api.md). The optional device-only network listener stays disabled until explicitly configured. A registered device has its own secret token. Only the hash is stored in SQLite; credentials must never be committed.
 
-1. Two independent irrigation channels on one ESP32, with three dedicated removable sensor cables.
-2. Calibration, event logging, dose limits and fault handling.
-3. A moisture forecast evaluated against simple baselines.
-4. A small image model trained from random initialization, subject to suitable licensed data.
-5. Blender models, server-backed persistence and verified notification delivery.
+The controller firmware must independently enforce pump-off on boot, a local runtime watchdog, reservoir/probe checks and durable command-ID deduplication. Server-side validation alone cannot stop a pump when the connection or server fails.
 
-Replacing a plant applies a registered profile and preserves each specimen's history. Data-driven adaptation requires a separate experiment; changing a profile alone does not demonstrate learning. Plant health or model accuracy claims will be based on measured results.
+## Data and backups
 
-Target: an integrated prototype by winter 2026–2027, with the diploma defense in May 2027. No exact defense date has been confirmed.
+Records and photographs now live on the server, so clearing browser data does not delete them. Language, view mode and the daily checklist remain browser preferences. The first import adopts existing assignments only for the imported mode and only before that mode was configured on the server; later imports merge records without replacing server settings.
 
+In Settings, use **Download database with photos**. Keep backups private: they contain observations, contact preferences, photos and device token hashes. To restore, stop the server, preserve the existing `data` folder as a backup, then place the downloaded database in a new folder and launch with `FOLIUM_DB` pointing to it. Do not replace a live SQLite database or mix it with old WAL files. Restarts always disarm irrigation; delivered-but-unacknowledged commands become uncertain.
+
+The journal CSV contains manual/imported/controller events. High-frequency telemetry is available separately at `/api/measurements` and in the database backup. A controller report contains **estimated** water volume from runtime; it is not a measured volume without a flow sensor.
+
+## Source layout
+
+- `site/dist/`: HTML, CSS, browser modules and original SVG artwork.
+- `site/server/`: schema, validation, transactions, HTTP API and irrigation safeguards.
+- `site/scripts/`: server, credential provisioning and isolated simulator.
+- `site/tests/`: state, translation, persistence, API and irrigation tests.
+- `docs/`: architecture, hardware protocol and publication plan.
+
+Target: an integrated prototype by winter 2026–2027; defense in May 2027. Changing plant profiles is configuration, not proof of machine learning. Evaluation claims require measured results.
