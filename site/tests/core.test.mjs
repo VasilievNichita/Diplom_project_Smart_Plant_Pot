@@ -1,0 +1,9 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {initialState,replacePlant,addEvent,numeric,toCSV,validateState} from '../dist/core.js';import {copy} from '../dist/i18n.js';
+test('replacement preserves history and resets channel calibration',()=>{let s=initialState();s.calibrated[1]=true;s=addEvent(s,{plantId:'tradescantia',type:'watering',note:'original',waterMl:20});const r=replacePlant(s,1,'cactus');assert.equal(r.state.events[0].plantId,'tradescantia');assert.equal(r.state.channels[0],'chlorophytum');assert.equal(r.state.channels[1],'cactus');assert.equal(r.state.calibrated[1],false);assert.equal(s.channels[1],'tradescantia');});
+test('cannot assign a plant to two channels',()=>assert.throws(()=>replacePlant(initialState(),1,'chlorophytum')));
+test('numeric measurements reject invalid input without inventing zero',()=>{assert.equal(numeric('',0,100),null);assert.equal(numeric('0',0,100),0);assert.throws(()=>numeric('110',0,100));assert.throws(()=>numeric('oops',0,100));});
+test('record tracks demo or real origin',()=>{let s=initialState();s=addEvent(s,{plantId:'cactus',type:'observation',note:'demo'});s.mode='real';s=addEvent(s,{plantId:'cactus',type:'observation',note:'real'});assert.deepEqual(s.events.map(x=>x.mode),['real','demo']);});
+test('CSV neutralizes spreadsheet formula cells and escapes notes',()=>{const c=toCSV([{note:'=HYPERLINK("x")'}]);assert.ok(c.includes("'=HYPERLINK"));assert.ok(c.includes('""x""'));});
+test('stored state rejects malformed channels and events',()=>{assert.throws(()=>validateState({...initialState(),channels:['cactus','cactus']}));assert.throws(()=>validateState({...initialState(),events:[{}]}));assert.equal(validateState(initialState()).version,1);});
+test('all three languages have complete matching keys',()=>{for(const lang of ['ro','en'])assert.deepEqual(Object.keys(copy[lang]).sort(),Object.keys(copy.ru).sort());});

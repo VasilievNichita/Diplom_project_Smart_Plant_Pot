@@ -1,0 +1,21 @@
+# Local planning, review output and personal records are not published.
+/planning/
+/private/
+/data/
+**/node_modules/
+**/.env
+**/.env.*
+!**/.env.example
+**/__pycache__/
+**/.venv/
+**/qa/
+**/screenshots/
+**/*.log
+**/*.db
+**/*.sqlite*
+**/*.pt
+**/*.pth
+**/*.onnx
+.DS_Store
+Thumbs.db
+
