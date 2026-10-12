@@ -2,6 +2,8 @@
 /planning/
 /private/
 /data/
+/datasets/
+**/folium-photo-dataset*.zip
 **/node_modules/
 **/.env
 **/.env.*

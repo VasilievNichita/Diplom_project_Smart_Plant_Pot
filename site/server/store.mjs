@@ -3,6 +3,7 @@ import {randomUUID, randomBytes, createHash} from 'node:crypto';
 import {readFileSync, mkdirSync} from 'node:fs';
 import path from 'node:path';
 import {PLANTS} from '../dist/core.js';
+import {emptyReview, selectionIssues, PHOTO_SIGNS, PHOTO_QUALITY, PHOTO_SOURCES} from '../dist/photo-core.js';
 import {requireThat as check, object, string, number, id, mode, timestamp, metrics} from './validation.mjs';
 
 const digest = value => createHash('sha256').update(value).digest('hex');
@@ -153,9 +154,53 @@ export class Store {
     this.db.prepare('INSERT INTO photos VALUES (?,?,?,?,?,?,?,?,?)').run(body.id,body.mode,plant.id,date,note,name,body.mime,hash,bytes);
     return {id:body.id};
   }
-  photos(m) { return this.db.prepare('SELECT id,mode,plant_id AS plantId,date,note,name,mime FROM photos WHERE mode=? ORDER BY date DESC').all(mode(m)); }
+  photos(m) {
+    return this.db.prepare('SELECT p.id,p.mode,p.plant_id AS plantId,p.date,p.note,p.name,p.mime,r.payload AS review FROM photos p LEFT JOIN photo_reviews r ON r.photo_id=p.id WHERE p.mode=? ORDER BY p.date DESC,p.id').all(mode(m))
+      .map(p=>({...p,review:p.review?JSON.parse(p.review):emptyReview()}));
+  }
   photo(photoId) { const p=this.db.prepare('SELECT * FROM photos WHERE id=?').get(id(photoId)); check(p,'photo_not_found',404); return p; }
   deletePhoto(photoId) { this.db.prepare('DELETE FROM photos WHERE id=?').run(id(photoId)); }
+  reviewPhoto(photoId,body) {
+    object(body); number(body.expectedRevision,0,Number.MAX_SAFE_INTEGER-1,false,true);
+    check(PHOTO_QUALITY.includes(body.quality)&&PHOTO_SOURCES.includes(body.source),'invalid_photo_review');
+    check(typeof body.identityConfirmed==='boolean'&&typeof body.selected==='boolean','invalid_photo_review');
+    const specimenId=string(body.specimenId,64).trim(),sourceReference=string(body.sourceReference,1000).trim();
+    check(!specimenId||/^[a-zA-Z0-9_-]{1,64}$/.test(specimenId),'invalid_specimen');
+    check(Array.isArray(body.signs)&&body.signs.length>0&&body.signs.length<=PHOTO_SIGNS.length&&body.signs.every(v=>PHOTO_SIGNS.includes(v))&&new Set(body.signs).size===body.signs.length,'invalid_photo_signs');
+    check(!body.signs.some(v=>['unknown','no_visible_issue'].includes(v))||body.signs.length===1,'invalid_photo_signs');
+    return this.tx(()=>{
+      const photo=this.photo(photoId),old=this.db.prepare('SELECT revision FROM photo_reviews WHERE photo_id=?').get(photo.id);
+      check((old?.revision||0)===body.expectedRevision,'photo_review_conflict',409);
+      const review={revision:body.expectedRevision+1,quality:body.quality,identityConfirmed:body.identityConfirmed,specimenId,source:body.source,sourceReference,signs:PHOTO_SIGNS.filter(v=>body.signs.includes(v)),selected:body.selected,updatedAt:this.now()};
+      check(!review.selected||!selectionIssues(photo,review).length,'photo_not_eligible',409);
+      if(review.selected){
+        const selected=this.selectedPhotos().filter(p=>p.id!==photoId);
+        check(!selected.some(p=>p.review.specimenId===specimenId&&p.plantId!==photo.plant_id),'specimen_class_conflict',409);
+        check(!selected.some(p=>p.digest===photo.digest&&(p.plantId!==photo.plant_id||p.review.specimenId!==specimenId||JSON.stringify(p.review.signs)!==JSON.stringify(review.signs))),'photo_duplicate_conflict',409);
+      }
+      this.db.prepare('INSERT INTO photo_reviews VALUES (?,?,?) ON CONFLICT(photo_id) DO UPDATE SET revision=excluded.revision,payload=excluded.payload').run(photo.id,review.revision,JSON.stringify(review));
+      return review;
+    });
+  }
+  selectedPhotos() {
+    return this.db.prepare("SELECT p.id,p.mode,p.plant_id AS plantId,p.mime,p.digest,r.payload AS review FROM photos p JOIN photo_reviews r ON r.photo_id=p.id WHERE p.mode='real' AND json_extract(r.payload,'$.selected')=1 ORDER BY p.id").all()
+      .map(p=>({...p,review:JSON.parse(p.review)})).filter(p=>!selectionIssues(p,p.review).length);
+  }
+  photoDataset() {
+    const selected=this.selectedPhotos(),seen=new Set(),items=[];
+    for(const p of selected){
+      if(seen.has(p.digest))continue;
+      seen.add(p.digest);
+      items.push({id:p.id,plantId:p.plantId,specimenId:p.review.specimenId,sha256:p.digest,mime:p.mime,
+        image:`images/${p.id}.${{'image/png':'png','image/jpeg':'jpg','image/webp':'webp'}[p.mime]}`,
+        source:p.review.source,sourceReference:p.review.sourceReference,signs:p.review.signs,reviewRevision:p.review.revision,reviewedAt:p.review.updatedAt,split:null});
+    }
+    const classes=PLANTS.map(p=>({id:p.id,images:items.filter(i=>i.plantId===p.id).length,specimens:new Set(items.filter(i=>i.plantId===p.id).map(i=>i.specimenId)).size}));
+    return {format:'folium-photo-dataset',version:1,generatedAt:this.now(),labelSource:'human',task:'plant-group-classification',
+      splitPolicy:'Unassigned. Keep each physical specimen and all its derivative images in one split.',
+      limitations:['Visual signs are human observations, not confirmed diagnoses.','Cactus is a broad group, not a species label.','Counts do not establish model accuracy or data sufficiency.'],
+      summary:{selected:selected.length,exported:items.length,duplicateImagesOmitted:selected.length-items.length,classes},items};
+  }
   calibrate(plantId,body) {
     object(body);const p=this.plant(plantId),dry=number(body.dryADC,0,4095,false,true),wet=number(body.wetADC,0,4095,false,true);
     check(Math.abs(dry-wet)>=100,'calibration_span_too_small');

@@ -26,6 +26,10 @@ CREATE TABLE IF NOT EXISTS photos (
   plant_id TEXT NOT NULL REFERENCES plants(id), date TEXT NOT NULL, note TEXT NOT NULL,
   name TEXT NOT NULL, mime TEXT NOT NULL, digest TEXT NOT NULL, bytes BLOB NOT NULL
 );
+CREATE TABLE IF NOT EXISTS photo_reviews (
+  photo_id TEXT PRIMARY KEY REFERENCES photos(id) ON DELETE CASCADE,
+  revision INTEGER NOT NULL, payload TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS devices (
   id TEXT PRIMARY KEY, token_hash TEXT NOT NULL UNIQUE, last_seen TEXT, reservoir_ok INTEGER,
   firmware TEXT NOT NULL DEFAULT '', last_boot TEXT, last_sequence INTEGER

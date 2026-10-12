@@ -5,9 +5,10 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {ApiError, requireThat as check, object} from './validation.mjs';
 import {toCSV} from '../dist/core.js';
+import {photoArchive} from './photo-archive.mjs';
 
 const webRoot = fileURLToPath(new URL('../dist/',import.meta.url));
-const assets = new Set(['index.html','app.js','core.js','api.js','i18n.js','art.js','styles.css','icon.svg']);
+const assets = new Set(['index.html','app.js','core.js','photo-core.js','api.js','i18n.js','art.js','styles.css','icon.svg']);
 const mime = {'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml'};
 const headers = {
   'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer',
@@ -57,6 +58,13 @@ export function createServer(store,{deviceOnly=false}={}) {
         if(route==='/api/prefs'&&method==='PUT')return json(res,200,store.savePrefs(await body(req)));
         if(route==='/api/photos'&&method==='GET')return json(res,200,{items:store.photos(m)});
         if(route==='/api/photos'&&method==='POST')return json(res,201,store.savePhoto(await body(req,14*1024*1024)));
+        if(route==='/api/photo-dataset'&&method==='GET')return json(res,200,store.photoDataset());
+        if(route==='/api/photo-dataset.zip'&&method==='GET') {
+          const archive=photoArchive(store);
+          res.writeHead(200,{...headers,'Content-Type':'application/zip','Content-Disposition':'attachment; filename="folium-photo-dataset.zip"'});return res.end(archive);
+        }
+        const review=route.match(/^\/api\/photos\/([\w-]+)\/review$/);
+        if(review&&method==='PUT')return json(res,200,store.reviewPhoto(review[1],await body(req)));
         let match=route.match(/^\/api\/photos\/([\w-]+)$/);
         if(match&&method==='GET'){const p=store.photo(match[1]);res.writeHead(200,{...headers,'Content-Type':p.mime,'Content-Disposition':'inline; filename="photo"'});return res.end(p.bytes);}
         if(match&&method==='DELETE'){store.deletePhoto(match[1]);return json(res,200,{deleted:true});}

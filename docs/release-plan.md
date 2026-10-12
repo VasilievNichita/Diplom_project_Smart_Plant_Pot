@@ -36,3 +36,7 @@ A reviewed local commit may already contain this milestone. At the scheduled che
 ## Firmware milestone
 
 The v0.3 source, wiring PDF, generator and assembly guide are publishable together with the small backend protocol extension for measured runtime and operator recovery. Review existing pending commits in order. Build `monitor`, `pump-test` and `irrigation` from `firmware`, run `firmware/scripts/test-native.ps1`, then the backend tests. Do not upload firmware to an attached board during an unattended publishing run. Never stage `firmware/include/secrets.h`, `.pio`, generated binaries with credentials, hardware QA renders or physical measurement records. Claims must distinguish host tests and cross-compilation from the still-pending bench trials.
+
+## Photo milestones
+
+On 12 October the user selected photo work and requested publishing only part of the completed changes. Publish the photo review storage/validation, private dataset export, compatible shared data definitions, tests and API documentation as one backend milestone. Keep the new inspection interface, translations and browser helpers local until their separate release is verified. The backend milestone must pass its tests from the exact staged snapshot without relying on those unpublished UI files. No images, dataset archives, generated QA records, trained weights or invented model results belong in either release.
