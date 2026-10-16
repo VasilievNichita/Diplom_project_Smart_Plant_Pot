@@ -3,6 +3,9 @@
 /private/
 /data/
 /datasets/
+/ml/runs/
+/ml/prepared/
+**/.pytest_cache/
 **/folium-photo-dataset*.zip
 **/node_modules/
 **/.env

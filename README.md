@@ -12,6 +12,7 @@ Diploma project by **Vasiliev Nichita, CR-232**. One controller, two irrigation 
 - Bounded manual watering requests with dose, rolling 24-hour budget, cooldown, freshness and reservoir checks. Commands are handed off once and require a device result; uncertain results block further watering.
 - Full SQLite backup, including photos; complete journal CSV export; paginated journal and measurement API.
 - Photo inspection interface in RU/RO/EN: human labels, quality/source review, specimen grouping, filters, dataset counts and private ZIP export. See the [photo workflow](docs/photo-workflow.md). Selecting photos does not train a model or trigger irrigation.
+- Locally prepared [from-scratch photo model pipeline](ml/README.md): archive validation, offline photo catalogues with per-pair human review, frozen specimen-level splits, a 79,475-parameter CNN, CPU training, separate held-out evaluation and offline reports in RU/RO/EN with loss curves and confusion matrices. Pair decisions are bound to the current images and labels. Reports check result consistency and preserve explicit synthetic/pending-test labels. Software tests use explicitly marked synthetic images; real plant training and integration with the site are pending.
 - ESP32-WROOM firmware with monitor, offline pump calibration and online irrigation builds; local interlocks, watchdog and persistent command journal. Wiring PDF and step-by-step commissioning guide are included. Physical hardware validation is pending.
 
 **The real controller is not connected. No physical watering or model accuracy has been demonstrated.** Automatic scheduling, trained models, Blender assets, account registration, remote hosting and notification delivery are still future work. SVG illustrations and demo charts remain clearly labelled.
@@ -58,6 +59,7 @@ The journal CSV contains manual/imported/controller events. High-frequency telem
 - `site/scripts/`: server, credential provisioning and isolated simulator.
 - `site/tests/`: state, translation, persistence, API and irrigation tests.
 - `firmware/`: PlatformIO project and shared C++ safety-core tests.
+- `ml/`: photo preparation, own CNN architecture, training/evaluation CLI and synthetic software tests; datasets and model weights stay private.
 - `hardware/`: source generator for the vector wiring PDF in `output/pdf/`.
 - `docs/`: architecture, hardware protocol and publication plan.
 
