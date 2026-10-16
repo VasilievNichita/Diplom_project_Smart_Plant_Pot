@@ -1,3 +1,4 @@
+import {photoCopy} from './photo-i18n.js';
 export const copy = {
   "ru": {
     "garden": "Моя оранжерея",
@@ -732,4 +733,5 @@ export const copy = {
     "notScheduled": "Automatic operation is not enabled"
   }
 };
+for(const lang of Object.keys(copy))Object.assign(copy[lang],photoCopy[lang]);
 export function translate(lang,key){return copy[lang]?.[key]??copy.en[key]??key;}

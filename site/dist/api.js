@@ -12,3 +12,8 @@ export async function databaseBackup() {
   const response=await fetch('/api/backup',{method:'POST',headers:{'Content-Type':'application/json','X-Folium-Client':'web'},body:'{}',signal:AbortSignal.timeout(60000)});
   if(!response.ok)throw Error('backup_failed');return response.blob();
 }
+export async function photoDatasetArchive() {
+  const response=await fetch('/api/photo-dataset.zip',{signal:AbortSignal.timeout(60000)});
+  if(!response.ok){const data=await response.json().catch(()=>({}));const error=new Error(data.error||'server_error');error.code=data.error;throw error;}
+  return response.blob();
+}

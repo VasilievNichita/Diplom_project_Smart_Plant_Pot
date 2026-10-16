@@ -11,6 +11,7 @@ Diploma project by **Vasiliev Nichita, CR-232**. One controller, two irrigation 
 - Authenticated ESP32 API with binding revisions, packet deduplication and raw ADC readings. Relative moisture is calculated from the saved probe calibration.
 - Bounded manual watering requests with dose, rolling 24-hour budget, cooldown, freshness and reservoir checks. Commands are handed off once and require a device result; uncertain results block further watering.
 - Full SQLite backup, including photos; complete journal CSV export; paginated journal and measurement API.
+- Photo inspection interface in RU/RO/EN: human labels, quality/source review, specimen grouping, filters, dataset counts and private ZIP export. See the [photo workflow](docs/photo-workflow.md). Selecting photos does not train a model or trigger irrigation.
 - ESP32-WROOM firmware with monitor, offline pump calibration and online irrigation builds; local interlocks, watchdog and persistent command journal. Wiring PDF and step-by-step commissioning guide are included. Physical hardware validation is pending.
 
 **The real controller is not connected. No physical watering or model accuracy has been demonstrated.** Automatic scheduling, trained models, Blender assets, account registration, remote hosting and notification delivery are still future work. SVG illustrations and demo charts remain clearly labelled.

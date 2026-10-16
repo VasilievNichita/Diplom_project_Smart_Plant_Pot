@@ -8,7 +8,7 @@ import {toCSV} from '../dist/core.js';
 import {photoArchive} from './photo-archive.mjs';
 
 const webRoot = fileURLToPath(new URL('../dist/',import.meta.url));
-const assets = new Set(['index.html','app.js','core.js','photo-core.js','api.js','i18n.js','art.js','styles.css','icon.svg']);
+const assets = new Set(['index.html','app.js','core.js','photo-core.js','photo-ui.js','photo-i18n.js','api.js','i18n.js','art.js','styles.css','icon.svg']);
 const mime = {'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml'};
 const headers = {
   'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer',
