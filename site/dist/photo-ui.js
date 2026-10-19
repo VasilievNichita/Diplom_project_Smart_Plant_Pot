@@ -1,12 +1,15 @@
 import {PHOTO_SIGNS, PHOTO_QUALITY, PHOTO_SOURCES, selectionIssues, photoStatus} from './photo-core.js';
+import {createDatasetInspection} from './dataset-ui.js';
 
 export function createPhotoLibrary({t,esc,date,button,icon,openModal,request,getMode,onError}) {
   let photos=[],plant='all',status='all';
+  const inspection=createDatasetInspection({t,esc,request,button});
   const options=(values,prefix,selected)=>values.map(v=>`<option value="${v}" ${v===selected?'selected':''}>${t(prefix+v)}</option>`).join('');
   function view(){return `<div class="page-heading"><h1>${t('photoTitle')}</h1><p>${t('photoIntro')}</p></div>
     <div class="toolbar">${button(t('upload'),'photo','camera')}<span class="privacy-note">${t('photoPrivacy')}</span></div>
     <section class="photo-guide panel"><div><span class="eyebrow">${t('photoHumanLabel')}</span><h2>${t('photoGuideTitle')}</h2><p>${t('photoGuideText')}</p></div><details><summary>${t('photoHowTo')}</summary><p>${t('photoCaptureHelp')}</p><p>${t('photoNoDiagnosis')}</p></details></section>
     ${getMode()==='real'?`<section class="panel dataset-panel"><div class="panel-top"><div><h2>${t('photoDataset')}</h2><p class="panel-sub">${t('photoDatasetHelp')}</p></div>${button(t('photoExport'),'photo-export','download','','id="photo-export" disabled')}</div><div id="photo-dataset-summary" aria-live="polite">${t('serverLoading')}</div></section>`:`<p class="notice">${t('photoDemoHelp')}</p>`}
+    ${getMode()==='real'?inspection.view():''}
     <div class="toolbar photo-filters"><label for="photo-plant-filter">${t('plant')}<select id="photo-plant-filter" class="filter">${options(['all','chlorophytum','tradescantia','cactus'],'',plant)}</select></label><label for="photo-status-filter">${t('photoReviewStatus')}<select id="photo-status-filter" class="filter">${options(['all','unreviewed','reviewed','selected','rejected'],'photoStatus_',status)}</select></label></div>
     <div id="photo-list" aria-live="polite"><p class="hint">${t('serverLoading')}</p></div>`;
   }
@@ -25,6 +28,7 @@ export function createPhotoLibrary({t,esc,date,button,icon,openModal,request,get
         const {summary}=dataset;
         document.querySelector('#photo-dataset-summary').innerHTML=`<div class="dataset-counts">${summary.classes.map(c=>`<div><strong>${t(c.id)}</strong><span>${t('photoCount')}: ${c.images} · ${t('photoSpecimens')}: ${c.specimens}</span></div>`).join('')}</div><p class="hint">${t('photoUnique')}: ${summary.exported} · ${t('photoDuplicates')}: ${summary.duplicateImagesOmitted}</p><p class="hint">${t('photoSplitHelp')}</p>`;
         document.querySelector('#photo-export').disabled=!summary.exported;
+        await inspection.load(isCurrent);
       }
     }catch(error){if(isCurrent()){const target=document.querySelector('#photo-list');if(target)target.innerHTML=`<p class="error-banner">${t('serverError')}</p>`;const summary=document.querySelector('#photo-dataset-summary');if(summary)summary.textContent=t('serverError');onError(error);}}
   }
@@ -46,6 +50,7 @@ export function createPhotoLibrary({t,esc,date,button,icon,openModal,request,get
   function body(form){const data=new FormData(form);return {expectedRevision:Number(form.dataset.revision),identityConfirmed:data.get('identityConfirmed')==='on',quality:data.get('quality'),specimenId:data.get('specimenId').trim(),source:data.get('source'),sourceReference:data.get('sourceReference').trim(),signs:data.getAll('signs'),selected:data.get('selected')==='on'};}
   function updateHelp(){const form=document.querySelector('#photo-review-form');if(!form)return;const issues=selectionIssues({mode:form.dataset.mode},body(form));document.querySelector('#photo-selection-help').textContent=issues.length?t('photoStillNeeded')+' '+issues.map(i=>t('photoNeed_'+i)).join('; '):t('photoEligible');}
   function change(target){
+    inspection.change(target);
     if(target.id==='photo-plant-filter'){plant=target.value;cards();}
     if(target.id==='photo-status-filter'){status=target.value;cards();}
     const form=target.closest('#photo-review-form');if(!form)return;
@@ -56,5 +61,5 @@ export function createPhotoLibrary({t,esc,date,button,icon,openModal,request,get
     }
     updateHelp();
   }
-  return {view,load,open,body,change,updateHelp};
+  return {view,load,open,body,change,updateHelp,action:inspection.action};
 }

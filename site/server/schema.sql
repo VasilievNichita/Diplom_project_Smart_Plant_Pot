@@ -56,3 +56,7 @@ CREATE TABLE IF NOT EXISTS commands (
   created_at TEXT NOT NULL, expires_at TEXT NOT NULL, delivered_at TEXT, finished_at TEXT, result TEXT
 );
 CREATE INDEX IF NOT EXISTS commands_status ON commands(status);
+CREATE TABLE IF NOT EXISTS photo_inspections (
+  id TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 0,
+  payload TEXT NOT NULL
+);

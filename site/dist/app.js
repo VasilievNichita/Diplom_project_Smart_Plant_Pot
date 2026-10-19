@@ -102,6 +102,7 @@ document.addEventListener('click',async e=>{
   if(action==='log'){if(!online)throw Error();logModal(el.dataset.plant,el.dataset.type);}
   if(action==='photo'){if(!online)throw Error();photoModal(el.dataset.plant);}
   if(action==='photo-review')photoLibrary.open(el.dataset.id);
+  if(action.startsWith('dataset-'))await photoLibrary.action(action);
   if(action==='photo-export'){el.disabled=true;try{download(await photoDatasetArchive(),'folium-photo-dataset.zip','application/zip');}finally{el.disabled=false;}}
   if(action==='swap'){if(!online)throw Error();swapModal(Number(el.dataset.channel));}
   if(action==='range'){chartRange=el.dataset.range;if(state.mode==='real')await refresh();else render();}

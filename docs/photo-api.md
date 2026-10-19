@@ -49,3 +49,16 @@
 ## Проверка этого этапа
 
 Из `site`: `npm test` с Node.js 24+. Тесты проверяют сохранение после перезапуска, удаление разметки вместе с фото, конфликт версий, условия отбора, дубликаты, приватность манифеста, ZIP/CRC и границу административного API. Используются синтетические изображения; они не являются реальными наблюдениями и не используются для обучения. Фотоосмотры не создают команды полива и не снимают его блокировки.
+# Web dataset inspection
+
+The loopback admin API now exposes the existing local Python preparation pipeline. These routes are unavailable on the device-only listener and retain the origin/client-header requirements.
+
+- `GET /api/photo-inspection`: latest job, audit, preview catalogue metadata, saved decisions, revision and stale state.
+- `POST /api/photo-inspection` with `{}`: snapshot the currently selected real dataset and start an asynchronous audit; returns 202. An unchanged completed check is reused. Only one worker runs at a time.
+- `PUT /api/photo-inspection/:id/review`: save `{expectedRevision, auditId, acknowledged, pairs:[{first,second,decision}]}`. Decisions are `""`, `different_specimens`, `same_specimen` or `uncertain`. Exact pair membership is required; incomplete reviews may be saved but cannot authorize preparation.
+- `POST /api/photo-inspection/:id/prepare` with `{expectedRevision}`: prepare immutable specimen-level splits with seed 42 after all checks pass. Returns 202; poll the current-job route. No training or irrigation is triggered.
+- `GET /api/photo-inspection/:id/thumb/:photoId`: normalized JPEG preview belonging to that audit. Arbitrary paths and files outside the validated catalogue are not served.
+
+Jobs return `running`, `audited`, `preparing`, `prepared` or `failed`. A change in exported image bytes or review metadata makes the snapshot stale; stale saves/preparation return 409. Concurrent review saves require the current revision. Restarted workers become failed rather than being silently resumed. Python runs without a shell, using server-owned paths, with a two-minute deadline. The browser cannot provide executable paths or command arguments.
+
+SQLite stores job metadata and human decisions. Private ZIP snapshots, thumbnails and prepared files live beside the DB in `photo-inspections/<job-id>/`. They are not included in SQLite-only backups and are not deleted when an original photo card is removed. Preserve the folder for reproducibility, or recheck the dataset after restoring only the database. The service requires the local `ml/.venv` environment described in `ml/README.md`.

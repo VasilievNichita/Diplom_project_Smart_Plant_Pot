@@ -6,9 +6,10 @@ import {fileURLToPath} from 'node:url';
 import {ApiError, requireThat as check, object} from './validation.mjs';
 import {toCSV} from '../dist/core.js';
 import {photoArchive} from './photo-archive.mjs';
+import {PhotoInspection} from './photo-inspection.mjs';
 
 const webRoot = fileURLToPath(new URL('../dist/',import.meta.url));
-const assets = new Set(['index.html','app.js','core.js','photo-core.js','photo-ui.js','photo-i18n.js','api.js','i18n.js','art.js','styles.css','icon.svg']);
+const assets = new Set(['index.html','app.js','core.js','photo-core.js','photo-ui.js','photo-i18n.js','dataset-ui.js','dataset-i18n.js','api.js','i18n.js','art.js','styles.css','icon.svg']);
 const mime = {'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml'};
 const headers = {
   'Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'no-referrer',
@@ -25,7 +26,9 @@ async function body(req,limit=256*1024) {
   let parsed;try{parsed=JSON.parse(Buffer.concat(parts).toString('utf8'));}catch{throw new ApiError(400,'invalid_json');}
   return object(parsed);
 }
-export function createServer(store,{deviceOnly=false}={}) {
+export function createServer(store,{deviceOnly=false,inspectionOptions}={}) {
+  let inspection;
+  const inspector=()=>inspection??=new PhotoInspection(store,inspectionOptions);
   return http.createServer({requestTimeout:20000,headersTimeout:10000,maxHeaderSize:16384},async(req,res)=>{
     try {
       const url=new URL(req.url,'http://localhost'), route=url.pathname,method=req.method;
@@ -59,6 +62,13 @@ export function createServer(store,{deviceOnly=false}={}) {
         if(route==='/api/photos'&&method==='GET')return json(res,200,{items:store.photos(m)});
         if(route==='/api/photos'&&method==='POST')return json(res,201,store.savePhoto(await body(req,14*1024*1024)));
         if(route==='/api/photo-dataset'&&method==='GET')return json(res,200,store.photoDataset());
+        if(route==='/api/photo-inspection'&&method==='GET')return json(res,200,{job:inspector().current()});
+        if(route==='/api/photo-inspection'&&method==='POST'){await body(req);return json(res,202,{job:await inspector().start()});}
+        const inspectionAction=route.match(/^\/api\/photo-inspection\/([\w-]+)\/(review|prepare)$/);
+        if(inspectionAction&&inspectionAction[2]==='review'&&method==='PUT')return json(res,200,{job:inspector().save(inspectionAction[1],await body(req))});
+        if(inspectionAction&&inspectionAction[2]==='prepare'&&method==='POST')return json(res,202,{job:await inspector().prepare(inspectionAction[1],await body(req))});
+        const thumb=route.match(/^\/api\/photo-inspection\/([\w-]+)\/thumb\/([\w-]+)$/);
+        if(thumb&&method==='GET'){const bytes=await inspector().thumbnail(thumb[1],thumb[2]);res.writeHead(200,{...headers,'Content-Type':'image/jpeg'});return res.end(bytes);}
         if(route==='/api/photo-dataset.zip'&&method==='GET') {
           const archive=photoArchive(store);
           res.writeHead(200,{...headers,'Content-Type':'application/zip','Content-Disposition':'attachment; filename="folium-photo-dataset.zip"'});return res.end(archive);

@@ -1,3 +1,4 @@
+import {inspectionCopy} from './dataset-i18n.js';
 import {photoCopy} from './photo-i18n.js';
 export const copy = {
   "ru": {
@@ -733,5 +734,5 @@ export const copy = {
     "notScheduled": "Automatic operation is not enabled"
   }
 };
-for(const lang of Object.keys(copy))Object.assign(copy[lang],photoCopy[lang]);
+for(const lang of Object.keys(copy))Object.assign(copy[lang],photoCopy[lang],inspectionCopy[lang]);
 export function translate(lang,key){return copy[lang]?.[key]??copy.en[key]??key;}
