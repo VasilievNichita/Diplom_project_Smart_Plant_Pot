@@ -84,7 +84,7 @@ def source_hash():
     return sha256(b"".join(p.name.encode() + p.read_bytes() for p in sorted(root.glob("*.py"))))
 
 
-def train(folder: Path, output: Path, epochs=30, batch_size=16, learning_rate=.001, seed=42, patience=8, device_name="cpu"):
+def train(folder: Path, output: Path, epochs=30, batch_size=16, learning_rate=.001, seed=42, patience=8, device_name="cpu", class_balance=False):
     require(not output.exists(), "Run folder already exists; use a new run id")
     require(1 <= epochs <= 500 and 1 <= batch_size <= 256 and 1 <= patience <= 100, "Invalid training limits")
     require(math.isfinite(learning_rate) and 0 < learning_rate <= .1, "Invalid learning rate")
@@ -102,10 +102,15 @@ def train(folder: Path, output: Path, epochs=30, batch_size=16, learning_rate=.0
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=.0001)
     output.mkdir(parents=True, exist_ok=False)
     counts = Counter(r["plantId"] for r in train_rows)
+    # Fit only from training counts. Validation loss remains unweighted.
+    class_weights = [len(train_rows) / (len(CLASSES) * counts[c]) for c in CLASSES] if class_balance else None
+    loss_weights = torch.tensor(class_weights, dtype=torch.float32, device=device) if class_weights else None
     split_summary = {split: {"images": sum(r["split"] == split for r in manifest["items"]),
                             "specimens": len({r["specimenId"] for r in manifest["items"] if r["split"] == split})}
                      for split in ("train", "validation", "test")}
     metadata = {"format": "folium-model-run", "version": VERSION, "architecture": ARCHITECTURE,
+                "groupUnit": manifest.get("groupUnit", "physical-specimen"), "dataLimitations": manifest.get("limitations", []),
+                "splitPolicy": manifest.get("splitPolicy", "grouped-random"), "previousDatasetId": manifest.get("previousDatasetId"),
                 "purpose": manifest["purpose"], "datasetId": manifest["datasetId"], "classes": list(CLASSES), "imageSize": IMAGE_SIZE,
                 "initialization": "random", "pretrained": False, "initialStateSha256": initial_hash,
                 "sourceSha256": source_hash(), "seed": seed, "device": str(device), "startedAt": now(),
@@ -116,6 +121,7 @@ def train(folder: Path, output: Path, epochs=30, batch_size=16, learning_rate=.0
                 "trainCounts": dict(counts), "splitSummary": split_summary,
                 "majorityClass": max(CLASSES, key=lambda c: counts[c]),
                 "augmentation": "training_only_horizontal_flip_and_brightness_0.9_1.1"}
+    metadata.update(classBalance=bool(class_balance), trainingClassWeights=class_weights)
     save_json(output / "configuration.json", metadata)
     best, best_epoch, history = float("inf"), 0, []
     for epoch in range(1, epochs + 1):
@@ -124,7 +130,7 @@ def train(folder: Path, output: Path, epochs=30, batch_size=16, learning_rate=.0
         for images, labels in train_loader:
             optimizer.zero_grad(set_to_none=True)
             logits = model(images.to(device))
-            loss = nn.functional.cross_entropy(logits, labels.to(device))
+            loss = nn.functional.cross_entropy(logits, labels.to(device), weight=loss_weights)
             require(torch.isfinite(loss).item(), "Non-finite training loss")
             loss.backward()
             optimizer.step()
@@ -155,7 +161,7 @@ def load_model(run: Path, device_name="cpu"):
     require(metadata.get("format") == "folium-model-run" and metadata.get("architecture") == ARCHITECTURE and metadata.get("version") == VERSION, "Unsupported model run")
     require(metadata.get("classes") == list(CLASSES) and metadata.get("imageSize") == IMAGE_SIZE, "Model class/preprocessing mismatch")
     require(metadata.get("pretrained") is False and metadata.get("initialization") == "random", "This pipeline expects its own from-scratch run")
-    require(metadata.get("purpose") in {"plant-research", "synthetic-smoke-test"}, "Unknown model purpose")
+    require(metadata.get("purpose") in {"plant-research", "synthetic-smoke-test", "external-pilot"}, "Unknown model purpose")
     weights = run / "model.pt"
     require(weights.stat().st_size < 5 * 1024 * 1024, "Unexpected checkpoint size")
     require(sha256(weights.read_bytes()) == metadata.get("weightsSha256"), "Checkpoint integrity mismatch")
@@ -190,6 +196,9 @@ def evaluate(folder: Path, run: Path, device_name="cpu"):
                               for r, y, p, prob in zip(rows, targets, predictions, probabilities)],
               "limitations": ["Scores are uncalibrated model outputs, not diagnosis probabilities.",
                               "Small test sets and three broad classes do not establish general plant or disease recognition."]}
+    if metadata["purpose"] == "external-pilot":
+        report["warning"] = "Exploratory web pilot. Source groups are not verified physical specimens. Not home-use accuracy."
+        report["groupUnit"] = "source-group"
     if metadata["purpose"] == "synthetic-smoke-test":
         report["warning"] = "SOFTWARE TEST ONLY. These metrics are not plant recognition results."
     save_json(run / "test-report.json", report)
