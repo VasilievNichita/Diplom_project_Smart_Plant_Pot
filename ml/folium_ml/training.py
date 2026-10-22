@@ -40,8 +40,11 @@ def image_tensor(image):
 
 
 class PhotoDataset(Dataset):
-    def __init__(self, folder, records, augment=False):
+    def __init__(self, folder, records, augment=False, brightness=(.9, 1.1), color_jitter=False):
         self.folder, self.records, self.augment = Path(folder), records, augment
+        require(len(brightness) == 2 and all(math.isfinite(v) for v in brightness) and .2 <= brightness[0] <= brightness[1] <= 2, "Invalid brightness range")
+        self.brightness = tuple(brightness)
+        self.color_jitter = color_jitter
 
     def __len__(self):
         return len(self.records)
@@ -53,7 +56,10 @@ class PhotoDataset(Dataset):
             if self.augment:
                 if random.random() < .5:
                     image = ImageOps.mirror(image)
-                image = ImageEnhance.Brightness(image).enhance(random.uniform(.9, 1.1))
+                image = ImageEnhance.Brightness(image).enhance(random.uniform(*self.brightness))
+                if self.color_jitter:
+                    gains = np.array([random.uniform(.85, 1.15) for _ in range(3)], dtype=np.float32)
+                    image = Image.fromarray(np.clip(np.asarray(image, dtype=np.float32) * gains, 0, 255).astype(np.uint8))
             tensor = image_tensor(image)
         return tensor, CLASSES.index(record["plantId"])
 
@@ -84,7 +90,7 @@ def source_hash():
     return sha256(b"".join(p.name.encode() + p.read_bytes() for p in sorted(root.glob("*.py"))))
 
 
-def train(folder: Path, output: Path, epochs=30, batch_size=16, learning_rate=.001, seed=42, patience=8, device_name="cpu", class_balance=False):
+def train(folder: Path, output: Path, epochs=30, batch_size=16, learning_rate=.001, seed=42, patience=8, device_name="cpu", class_balance=False, brightness=(.9, 1.1), color_jitter=False):
     require(not output.exists(), "Run folder already exists; use a new run id")
     require(1 <= epochs <= 500 and 1 <= batch_size <= 256 and 1 <= patience <= 100, "Invalid training limits")
     require(math.isfinite(learning_rate) and 0 < learning_rate <= .1, "Invalid learning rate")
@@ -97,7 +103,7 @@ def train(folder: Path, output: Path, epochs=30, batch_size=16, learning_rate=.0
     model = FoliumCNN().to(device)
     initial_hash = initialization_hash(model)
     generator = torch.Generator().manual_seed(seed)
-    train_loader = DataLoader(PhotoDataset(folder, train_rows, augment=True), batch_size=batch_size, shuffle=True, generator=generator, num_workers=0)
+    train_loader = DataLoader(PhotoDataset(folder, train_rows, augment=True, brightness=brightness, color_jitter=color_jitter), batch_size=batch_size, shuffle=True, generator=generator, num_workers=0)
     val_loader = DataLoader(PhotoDataset(folder, val_rows), batch_size=batch_size, shuffle=False, num_workers=0)
     optimizer = torch.optim.AdamW(model.parameters(), lr=learning_rate, weight_decay=.0001)
     output.mkdir(parents=True, exist_ok=False)
@@ -120,7 +126,8 @@ def train(folder: Path, output: Path, epochs=30, batch_size=16, learning_rate=.0
                 "checkpointSelection": "lowest_validation_cross_entropy", "testUsedDuringTraining": False,
                 "trainCounts": dict(counts), "splitSummary": split_summary,
                 "majorityClass": max(CLASSES, key=lambda c: counts[c]),
-                "augmentation": "training_only_horizontal_flip_and_brightness_0.9_1.1"}
+                "augmentation": "training_only_horizontal_flip_and_brightness",
+                "brightnessRange": list(brightness), "colorGainRange": [.85, 1.15] if color_jitter else None}
     metadata.update(classBalance=bool(class_balance), trainingClassWeights=class_weights)
     save_json(output / "configuration.json", metadata)
     best, best_epoch, history = float("inf"), 0, []
